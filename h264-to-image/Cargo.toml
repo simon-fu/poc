@@ -1,0 +1,14 @@
+[package]
+name = "h264-to-image"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+openh264 = "=0.3.1"
+image = "=0.24.5"
+h264-reader = "=0.6.0"
+anyhow = "=1.0.68"
+# ffmpeg-next = "=5.1.1"
+ffmpeg-next = { version = "=5.1.1", default-features = false, features = ["codec", "format", "static"]}
