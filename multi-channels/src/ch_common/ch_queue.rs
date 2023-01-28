@@ -14,6 +14,7 @@ impl<T> ChDeque<T> {
         Self { queue: VecDeque::new(), last_seq: 0 }
     }
 
+    /// 获取下一个 seq，用户辅助生成seq。当数据 T 本身在生成时就有 seq 则不用调用此函数。
     pub fn next_seq(&self) -> u64 {
         self.last_seq + 1
     }

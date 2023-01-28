@@ -11,7 +11,7 @@ use std::{sync::Arc, pin::Pin, task::Poll};
 use std::ops::Deref;
 use anyhow::{Result, bail};
 use futures::{task::AtomicWaker, Future};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use crate::{ch_common::{SeqVal, RecvOutput, GetSeq, ReadQueOutput, ChIdOp, WithSeq, ChDeque, VecSet, VecMap}, define_arc_hash};
 
 pub fn impl_name() -> &'static str {
@@ -30,7 +30,7 @@ impl<K, T> Channel<K, T> {
     pub fn with_capacity(ch_id: K, capacity: usize) -> Self {
         Self {
             shared: Arc::new(ChShared { 
-                queue: Mutex::new(ChDeque::new()),
+                queue: RwLock::new(ChDeque::new()),
                 subers: Default::default(),
                 capacity,
                 ch_id,
@@ -203,7 +203,7 @@ where
 {
     pub fn push_raw(&mut self, v: T) -> Result<()> {
         {
-            let mut queue = self.ch_shared.queue.lock();
+            let mut queue = self.ch_shared.queue.write();
             queue.push_raw(v, self.ch_shared.capacity)?;
         }
 
@@ -229,7 +229,7 @@ where
 {
     pub fn push(&mut self, v: T::Value) -> Result<()> {
         {
-            let mut queue = self.ch_shared.queue.lock();
+            let mut queue = self.ch_shared.queue.write();
             let v = T::with_seq(queue.next_seq(), v);   
             queue.push_raw(v, self.ch_shared.capacity)?;
         }
@@ -270,7 +270,7 @@ struct ChShared<K, T> {
     capacity: usize,
     ch_id: K,
     subers: Mutex<VecSet< HashSuberShared<K> >>,
-    queue: Mutex<ChDeque<T>>,
+    queue: RwLock<ChDeque<T>>,
 }
 
 
@@ -285,12 +285,14 @@ where
     T: Clone + GetSeq,
 {
     pub fn read_next(&mut self) -> RecvOutput<K, T> {
-        let queue = self.ch.shared.queue.lock();
-        let r = queue.read_next(self.seq);
+        let r =  {
+            let queue = self.ch.shared.queue.read();
+            queue.read_next(self.seq)
+        };
+
         match r {
             ReadQueOutput::Latest => RecvOutput::None,
             ReadQueOutput::Value(v) => {
-                drop(queue);
                 return self.output_value(v);
             }
             ReadQueOutput::Lagged => {
