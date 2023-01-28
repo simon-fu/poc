@@ -16,7 +16,7 @@ pub fn run() -> Result<()> {
     ffmpeg::init()
     .with_context(||"init ffmpeg fail")?;
 
-    let rtype = 3;
+    let rtype = 1;
     match rtype {
         1 => decode_to_yuv_file(),
         2 => decode_to_yuv_file2(),
@@ -27,11 +27,16 @@ pub fn run() -> Result<()> {
 
 fn decode_to_yuv_file() -> Result<()> {
     // let h264_packets = &include_bytes!("/tmp/h264_1920x1080.h264")[..];
-    let file_bytes = crate::util::read_to_vec("/tmp/h264_1920x1080.h264")?;
+    let codec_id = AVCodecID::AV_CODEC_ID_HEVC;
+    let file_bytes = crate::util::read_to_vec("/tmp/sample-data/sampleh265.h265")?;
+
+    // let codec_id = AVCodecID::AV_CODEC_ID_H264;
+    // let file_bytes = crate::util::read_to_vec("/tmp/h264_1920x1080.h264")?;
+
     let h264_packets = &file_bytes;
     // let fps = 25;
     let output_filename = "/tmp/output.yuv";
-    let codec_id = AVCodecID::AV_CODEC_ID_H264;
+    
 
     let decoder = unsafe {
         
@@ -208,15 +213,21 @@ fn decode_to_yuv_file2() -> Result<()> {
 
 fn decode_to_image_file() -> Result<()> { 
 
-    // let filename = "/tmp/h264_1920x1080.h264";
-    let filename = "/tmp/hebei.h264";
-    let file_bytes = crate::util::read_to_vec(filename)?;
-    println!("loaded file [{}]", filename);
-
-    let h264_packets = &file_bytes;
     // let h264_packets = &include_bytes!("/tmp/h264_1920x1080.h264")[..];
     // let fps = 25;
-    let codec_id = AVCodecID::AV_CODEC_ID_H264;
+
+    // let codec_id = AVCodecID::AV_CODEC_ID_H264;
+    // // let filename = "/tmp/h264_1920x1080.h264";
+    // let filename = "/tmp/hebei.h264";
+
+    let codec_id = AVCodecID::AV_CODEC_ID_HEVC;
+    let filename = "/tmp/sample-data/sampleh265.h265";
+
+    let file_bytes = crate::util::read_to_vec(filename)?;
+    println!("loaded file [{}]", filename);
+    let h264_packets = &file_bytes;
+ 
+    
 
     let output_file_base= "/tmp/snapshot-";
     let output_file_ext = "jpeg";
