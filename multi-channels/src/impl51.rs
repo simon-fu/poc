@@ -8,12 +8,13 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use parking_lot::Mutex;
 use tokio::sync::broadcast::{self, Receiver, Sender, error::RecvError};
 
-use crate::ch_common::{uid::{next_ch_id, ChId}};
+use crate::ch_common::uid::ChId;
 
 
 pub async fn run() -> Result<()> {
     let capacity = 10;
-    let ch1 = Channel::with_capacity(capacity);
+    let ch_id1 = ChId::new(1);
+    let ch1 = Channel::with_capacity(ch_id1, capacity);
     let mut puber1 = ch1.puber();
     let mut suber = Suber::new();
     suber.subscribe(&ch1)?;
@@ -42,7 +43,7 @@ pub async fn run() -> Result<()> {
     }
 
     suber.unsubscribe(ch1.ch_id());
-    
+    println!("run done");
     Ok(())
 }
 
@@ -54,18 +55,18 @@ pub struct Channel<T> {
 }
 
 impl<T> Channel<T> {
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(ch_id: ChId, capacity: usize) -> Self {
         Self {
             shared: Arc::new(ChShared { 
                 data: Default::default(),
                 capacity,
-                uid: next_ch_id(),
+                ch_id,
             }
         )}
     }
 
     pub fn ch_id(&self) -> ChId {
-        self.shared.uid
+        self.shared.ch_id
     }
 
     pub fn puber(&self) -> Puber<T> {
@@ -75,7 +76,7 @@ impl<T> Channel<T> {
 
 struct ChShared<T> {
     capacity: usize,
-    uid: ChId,
+    ch_id: ChId,
     data: Mutex<ChData<T>>,
 }
 
@@ -123,7 +124,7 @@ where
 
         let r = self.recvers.iter().position(|x| x.ch.ch_id() == ch.ch_id());
         if let Some(index) = r {
-            bail!("already subscribed ch_id [{}] at [{}]", ch.shared.uid, index)
+            bail!("already subscribed ch_id [{}] at [{}]", ch.shared.ch_id, index)
         }
 
         let mut data = ch.shared.data.lock();

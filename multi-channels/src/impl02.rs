@@ -4,6 +4,9 @@
 /// - 每个 channel 有一个 suber 列表，列表 item 为 async-broadcast tx
 /// - channel 在 publish 时遍历 suber 列表，tx.send
 /// - 消息保存在 channel queue 里以外，还保存一份在 async-broadcast 里，多了一份冗余
+/// - TODO: 
+///   - 把 async-broadcast 抽象出来，用 async-channel、tokio::sync::broadcast、flume、AtomicWaker 实现
+///   - broadcast 带上 active index
 /// 
 
 use std::sync::Arc;
