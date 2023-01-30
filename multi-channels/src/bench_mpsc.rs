@@ -1,5 +1,6 @@
 use std::{time::{Duration, Instant}, sync::Arc};
 use anyhow::Result;
+use console::Term;
 use tokio::time::sleep;
 use crate::{
     impl02::{
@@ -10,7 +11,7 @@ use crate::{
         mpsc_tokio_broadcast,
         mpsc_crossbeam_que,
         mpsc_kanal,
-    } 
+    }, cli_graph::bars::{BarRow, self} 
 };
 
 #[derive(Debug)]
@@ -21,43 +22,62 @@ struct BenchArgs {
 }
 
 pub async fn run() -> Result<()> { 
+    let mut bench = Bench {
+        args: BenchArgs{ ch_len: 256, ch_num: 300_000 , msg_num: 1 },
+        term: Term::stderr(),
+        bars: Vec::with_capacity(16),
+        is_plot: false,
+    };
+
     // warm up
-    bench_1_to_n_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 1 }).await?;
+    bench.term.write_line("warming up...")?;
+    bench_1_to_n_round(&mut bench.msg_num(1)).await?;
+    bench.term.write_line("warming up done")?;
+    bench.term.write_line("")?;
 
-    bench_1_to_n_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 1 }).await?;
-    bench_1_to_n_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 2 }).await?;
-    bench_1_to_n_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 10 }).await?;
-    bench_1_to_n_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 100 }).await?;
+    bench.is_plot = true;
 
-    bench_1_to_n_sendonly_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 1 }).await?;
-    bench_1_to_n_sendonly_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 2 }).await?;
-    bench_1_to_n_sendonly_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 10 }).await?;
-    bench_1_to_n_sendonly_round(&BenchArgs{ ch_len: 128, ch_num: 1_000_000 , msg_num: 100 }).await?;
+    bench_1_to_n_round(&mut bench.msg_num(1)).await?;
+    bench_1_to_n_round(&mut bench.msg_num(2)).await?;
+    bench_1_to_n_round(&mut bench.msg_num(10)).await?;
+    bench_1_to_n_round(&mut bench.msg_num(100)).await?;
+    bench_1_to_n_round(&mut bench.msg_num(200)).await?;
+
+    bench_1_to_n_sendonly_round(&mut bench.msg_num(1)).await?;
+    bench_1_to_n_sendonly_round(&mut bench.msg_num(2)).await?;
+    bench_1_to_n_sendonly_round(&mut bench.msg_num(10)).await?;
+    bench_1_to_n_sendonly_round(&mut bench.msg_num(100)).await?;
+    bench_1_to_n_sendonly_round(&mut bench.msg_num(200)).await?;
 
     Ok(())
 }
 
-async fn bench_1_to_n_round(args: &BenchArgs) -> Result<()> { 
-    println!("1_to_n round: {:?}", args);
-    bench_1_to_n::<mpsc_async_broadcast::Mpsc>(args).await?;
-    bench_1_to_n::<mpsc_async_channel::Mpsc>(args).await?;
-    bench_1_to_n::<mpsc_tokio_mpsc::Mpsc>(args).await?;
-    bench_1_to_n::<mpsc_tokio_broadcast::Mpsc>(args).await?;
-    bench_1_to_n::<mpsc_crossbeam_que::Mpsc>(args).await?;
-    bench_1_to_n::<mpsc_kanal::Mpsc>(args).await?;
-    println!();
+async fn bench_1_to_n_round(bench: &mut Bench) -> Result<()> { 
+    
+    bench.term.write_line(&format!("1_to_n round: {:?}", bench.args))?;
+
+    bench_1_to_n::<mpsc_crossbeam_que::Mpsc>(bench).await?;
+    bench_1_to_n::<mpsc_kanal::Mpsc>(bench).await?;
+    bench_1_to_n::<mpsc_async_broadcast::Mpsc>(bench).await?;
+    bench_1_to_n::<mpsc_async_channel::Mpsc>(bench).await?;
+    bench_1_to_n::<mpsc_tokio_mpsc::Mpsc>(bench).await?;
+    bench_1_to_n::<mpsc_tokio_broadcast::Mpsc>(bench).await?;
+
+    bench.plot()?;
+
     Ok(())
 }
 
-type Value = (u64, usize, Arc<u64>);
 
-async fn bench_1_to_n<M>(args: &BenchArgs) -> Result<()> 
+async fn bench_1_to_n<M>(bench: &mut Bench) -> Result<()> 
 where
-    M: MpscOp<Value>,
-    <M as MpscOp<Value>>::Sender: std::marker::Send + 'static,
-    <M as MpscOp<Value>>::Receiver: std::marker::Send + 'static,
-    for<'a> <<M as MpscOp<Value>>::Receiver as RecvOp<Value>>::Fut<'a>: std::marker::Send,
+    M: MpscOp<Message>,
+    <M as MpscOp<Message>>::Sender: Send + 'static,
+    <M as MpscOp<Message>>::Receiver: Send + 'static,
+    for<'a> <<M as MpscOp<Message>>::Receiver as RecvOp<Message>>::Fut<'a>: Send,
 { 
+    let args = &bench.args;
+
     let mut senders = Vec::with_capacity(args.ch_num);
     let mut tasks = Vec::with_capacity(args.ch_num);
     let msg_num = args.msg_num;
@@ -91,35 +111,47 @@ where
     }
     let recved_elpased = kick_time.elapsed();
 
-    println!(
+    bench.term.clear_line()?;
+    bench.term.write_str(&format!(
         "{},{},{}",
         M::name(),
         sent_elpased.as_millis(),
         recved_elpased.as_millis(),
-    );
+    ))?;
+
+    bench.bars.push(BarRow { 
+        label: M::name().into(), 
+        count: recved_elpased.as_millis() as u64 
+    });
 
     Ok(())
 }
 
-async fn bench_1_to_n_sendonly_round(args: &BenchArgs) -> Result<()> { 
-    println!("1_to_n_sendonly round: {:?}", args);
-    bench_1_to_n_sendonly::<mpsc_async_broadcast::Mpsc>(args).await?;
-    bench_1_to_n_sendonly::<mpsc_async_channel::Mpsc>(args).await?;
-    bench_1_to_n_sendonly::<mpsc_tokio_mpsc::Mpsc>(args).await?;
-    bench_1_to_n_sendonly::<mpsc_tokio_broadcast::Mpsc>(args).await?;
-    bench_1_to_n_sendonly::<mpsc_crossbeam_que::Mpsc>(args).await?;
-    bench_1_to_n_sendonly::<mpsc_kanal::Mpsc>(args).await?;
-    println!();
+async fn bench_1_to_n_sendonly_round(bench: &mut Bench) -> Result<()> { 
+
+
+    bench.term.write_line(&format!("1_to_n_sendonly round: {:?}", bench.args))?;
+
+    bench_1_to_n_sendonly::<mpsc_crossbeam_que::Mpsc>(bench).await?;
+    bench_1_to_n_sendonly::<mpsc_kanal::Mpsc>(bench).await?;
+    bench_1_to_n_sendonly::<mpsc_async_broadcast::Mpsc>(bench).await?;
+    bench_1_to_n_sendonly::<mpsc_async_channel::Mpsc>(bench).await?;
+    bench_1_to_n_sendonly::<mpsc_tokio_mpsc::Mpsc>(bench).await?;
+    bench_1_to_n_sendonly::<mpsc_tokio_broadcast::Mpsc>(bench).await?;
+    
+    bench.plot()?;
+
     Ok(())
 }
 
-async fn bench_1_to_n_sendonly<M>(args: &BenchArgs) -> Result<()> 
+async fn bench_1_to_n_sendonly<M>(bench: &mut Bench) -> Result<()> 
 where
-    M: MpscOp<Value>,
-    <M as MpscOp<Value>>::Sender: std::marker::Send + 'static,
-    <M as MpscOp<Value>>::Receiver: std::marker::Send + 'static,
-    for<'a> <<M as MpscOp<Value>>::Receiver as RecvOp<Value>>::Fut<'a>: std::marker::Send,
+    M: MpscOp<Message>,
+    <M as MpscOp<Message>>::Sender: Send + 'static,
+    <M as MpscOp<Message>>::Receiver: Send + 'static,
+    for<'a> <<M as MpscOp<Message>>::Receiver as RecvOp<Message>>::Fut<'a>: Send,
 { 
+    let args = &bench.args;
     let mut senders = Vec::with_capacity(args.ch_num);
     let mut recvers = Vec::with_capacity(args.ch_num);
 
@@ -139,12 +171,47 @@ where
     }
     let sent_elpased = kick_time.elapsed();
 
-    println!(
+    bench.term.clear_line()?;
+    bench.term.write_str(&format!(
         "{},{}",
         M::name(),
         sent_elpased.as_millis(),
-    );
+    ))?;
+
+    bench.bars.push(BarRow { 
+        label: M::name().into(), 
+        count: sent_elpased.as_millis() as u64 
+    });
+
 
     Ok(())
 }
+
+struct Bench {
+    term: Term,
+    bars: Vec<BarRow>,
+    args: BenchArgs,
+    is_plot: bool,
+}
+
+impl Bench {
+    pub fn msg_num(&mut self, n: usize) -> &mut Self {
+        self.args.msg_num = n;
+        self
+    }
+
+    pub fn plot(&mut self) -> Result<()>{
+        self.term.clear_line()?;
+        if self.is_plot { 
+            let display = bars::display_with_width(&self.bars, self.term.size().1 as usize);
+            self.term.write_line(&format!("{}", display))?;
+            self.term.write_line("")?;
+        }
+        self.bars.clear();
+        Ok(())
+    }
+}
+
+type Message = (u64, usize, Arc<u64>);
+
 

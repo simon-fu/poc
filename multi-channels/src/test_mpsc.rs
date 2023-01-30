@@ -49,7 +49,7 @@ mod test {
 
     async fn test_num<M>() -> Result<()>
     where
-        M: MpscOp<TestVal>,
+        M: MpscOp<TestVal> + 'static,
         for<'a> <<M as MpscOp<usize>>::Receiver as RecvOp<usize>>::Fut<'a>: Send,
         <M as MpscOp<usize>>::Receiver: Send + 'static,
         <M as MpscOp<usize>>::Sender: Send + 'static,
@@ -186,7 +186,7 @@ mod test {
 
     async fn test_multi_rx<M>() -> Result<()>
     where
-        M: MpscOp<TestVal>,
+        M: MpscOp<TestVal> + 'static,
         for<'a> <<M as MpscOp<usize>>::Receiver as RecvOp<usize>>::Fut<'a>: Send,
         <M as MpscOp<usize>>::Receiver: Send + 'static,
         <M as MpscOp<usize>>::Sender: Send + 'static,

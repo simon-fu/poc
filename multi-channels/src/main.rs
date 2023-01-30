@@ -25,6 +25,8 @@ mod bench_mpsc;
 mod test_impl;
 mod test_mpsc;
 
+pub mod cli_graph;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let rtype = 0;

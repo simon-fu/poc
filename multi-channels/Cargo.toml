@@ -18,3 +18,7 @@ lazy_static = "^1.4.0"
 indexmap = "1.9.2"
 crossbeam = "0.8.2"
 kanal = "0.1.0-pre8"
+# lowcharts = "0.5.8"
+yansi = "0.5.1" 
+console = "0.15.5"
+
