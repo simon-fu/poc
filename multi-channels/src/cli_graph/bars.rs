@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use yansi::Color::{Blue, Red, Green,};
+use yansi::Color;
 
 // use super::format::HorizontalScale;
 
@@ -53,23 +53,24 @@ impl<'a> fmt::Display for BarsDisplay<'a> {
             - (1 + self.max_label_length + 1) 
             - 1 
             - (1 + count_width + 1)
-            - 1;
+            - 1
+            - (1+1);
 
         // let horizontal_scale = HorizontalScale::new(self.max_count / bar_width as Count);
-        
-        // writeln!(f, "width={}", width)?;
         // writeln!(f, "{horizontal_scale}")?;
+        writeln!(f, "bar_width={}", bar_width)?;
+        
 
         for row in self.rows.iter() {
             let bar_len = bar_width as Count * row.count / self.max_count;
             // let bar = Red.paint(format!("{:∎<width$}", "", width = bar_len as usize));
-            let bar = Red.paint(align_left(bar_chars(bar_len as usize), bar_width) );
+            let bar = Color::Yellow.paint(align_left(bar_chars(bar_len as usize), bar_width));
             // let count = Green.paint(format!("{units:width$}", units=row.count, width=count_width));
-            let count = Green.paint(align_right(row.count, count_width));
+            let count = Color::Green.paint(align_right(row.count, count_width));
             writeln!(
                 f,
-                "[{label}] [{count}] {bar}",
-                label = Blue.paint(format!("{:width$}", row.label, width = self.max_label_length)),
+                "[{label}] [{count}] [{bar}]",
+                label = Color::Blue.paint(format!("{:width$}", row.label, width = self.max_label_length)),
                 count = count, // horizontal_scale.get_count(row.count, count_width),
                 bar = bar, // horizontal_scale.get_bar(row.count)
             )?;
@@ -82,5 +83,17 @@ impl<'a> fmt::Display for BarsDisplay<'a> {
 }
 
 
+// #[cfg(test)]
+// mod test {
+//     use super::*;
 
+//     #[test]
+//     fn test() {
+//         let rows = vec![
+//             BarRow { label: "v1".into(), count: 8 },
+//             BarRow { label: "v123".into(), count: 13 },
+//         ];
+//         println!("{}", display_with_width(&rows, 80));
+//     }
+// }
 
