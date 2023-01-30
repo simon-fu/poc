@@ -1,8 +1,5 @@
 
 
-use anyhow::{Result, Context};
-
-
 
 pub enum ReadQueOutput<T> {
     Value(T),
@@ -124,16 +121,6 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("SeqVal").field(&self.0).field(&self.1).finish()
     }
-}
-
-pub fn vec_remove<T>(vec: &mut Vec<T>, val: &T) -> Result<T> 
-where
-    T: Eq+std::fmt::Debug,
-{
-    let index = vec.iter().position(|x|*x == *val)
-    .with_context(||format!("Not found [{:?}]", val))?;
-
-    Ok(vec.swap_remove(index))
 }
 
 

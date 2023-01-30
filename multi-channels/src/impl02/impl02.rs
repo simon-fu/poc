@@ -5,45 +5,65 @@
 /// - channel 在 publish 时遍历 suber 列表，tx.send
 /// - 消息保存在 channel queue 里以外，还保存一份在 async-broadcast 里，多了一份冗余
 /// - TODO: 
-///   - 把 async-broadcast 抽象出来，用 async-channel、tokio::sync::broadcast、flume、AtomicWaker 实现
+///   - 把 async-broadcast 抽象出来，用 async-channel、tokio::sync::broadcast、flume、kanal、concurrent-queue+AtomicWaker 实现
 ///   - broadcast 带上 active index
 /// 
 
 use std::sync::Arc;
-use std::ops::Deref;
+use std::ops::DerefMut;
 use anyhow::{Result, bail};
-use async_broadcast::{broadcast, Receiver, Sender, TryRecvError};
+// use async_broadcast::{broadcast, Receiver, Sender, TryRecvError};
 use parking_lot::{Mutex, RwLock};
 use crate::ch_common::uid::{SuberId, next_suber_id};
 use crate::ch_common::{SeqVal, RecvOutput, GetSeq, ReadQueOutput, ChIdOp, WithSeq, ChDeque, VecMap};
 
+use super::mpsc_defs::error::TryRecvError;
+use super::mpsc_defs::{SenderOp, MpscOp, RecvOp, TryRecvOp, ReceiverOp};
+
 pub fn impl_name() -> &'static str {
-    "impl02-async-broadcast"
+    "impl02"
 }
 
 /// Seq Channel
-pub type SChannel<K, T> = Channel<K, SeqVal<T>>;
+pub type SChannel<K, T, M> = Channel<K, SeqVal<T>, M>;
 
-#[derive(Clone)]
-pub struct Channel<K, T> 
+///
+/// Generic types:
+/// - K is Channel Id
+/// - T is Message
+/// - M is Mpsc
+pub struct Channel<K, T, M> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
-    shared: Arc<ChShared<K, T>>,
+    shared: Arc<ChShared<K, T, M>>,
 }
 
-impl<K, T> Channel<K, T> 
+impl<K, T, M> Clone for Channel<K, T, M> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
-    pub fn with_capacity(ch_id: K, capacity: usize) -> Self {
+    fn clone(&self) -> Self {
+        Self { shared: self.shared.clone() }
+    }
+}
+
+impl<K, T, M> Channel<K, T, M> 
+where
+    K: ChIdOp,
+    T: Clone,
+    M: MpscOp<Mail<K, T>>,
+{
+    pub fn with_capacity(ch_id: K, cap: usize) -> Self {
         Self {
             shared: Arc::new(ChShared { 
                 queue: RwLock::new(ChDeque::new()),
                 subers: Default::default(),
-                capacity,
+                capacity: cap,
                 ch_id,
             }
         )}
@@ -53,7 +73,7 @@ where
         &self.shared.ch_id
     }
 
-    pub fn puber(&self) -> Puber<K, T> {
+    pub fn puber(&self) -> Puber<K, T, M> {
         Puber { ch_shared: self.shared.clone() }
     }
 
@@ -61,7 +81,7 @@ where
         self.shared.subers.lock().len()
     }
 
-    fn insert_suber(&self, suber: &Suber<K, T>) {
+    fn insert_suber(&self, suber: &Suber<K, T, M>) {
         let mut subers = self.shared.subers.lock();
         let key = suber.id;
         subers.insert(key, suber.tx.clone());
@@ -72,27 +92,28 @@ where
     }
 }
 
-pub struct Suber<K, T> 
+pub struct Suber<K, T, M> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
-    active_cursors: VecMap<K, Cursor<K, T>>,
-    pending_cursors: VecMap<K, Cursor<K, T>>,
+    active_cursors: VecMap<K, Cursor<K, T, M>>,
+    pending_cursors: VecMap<K, Cursor<K, T, M>>,
     last_pending_index: usize,
-    tx: Sender<(K, T)>,
-    rx: Receiver<(K, T)>,
+    tx: M::Sender, // Sender<Mail<K, T>>,
+    rx: M::Receiver, // Receiver<Mail<K, T>>,
     id: SuberId,
 }
 
-impl<K, T> Suber<K, T> 
+impl<K, T, M> Suber<K, T, M> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
-    pub fn new() -> Self {
-        let (mut tx, rx) = broadcast(64);
-        tx.set_overflow(true);
+    pub fn with_inbox_cap(cap: usize) -> Self {
+        let (tx, rx) = M::channel(cap);
 
         Self { 
             active_cursors: VecMap::new(),
@@ -104,12 +125,13 @@ where
         }
     }
 
-    pub fn subscribe(&mut self, ch: &Channel<K, T>, seq: u64) -> Result<()> {
+    pub fn subscribe(&mut self, ch: &Channel<K, T, M>, seq: u64) -> Result<()> {
 
         if self.exist_channel(ch.ch_id()) {
             bail!("already subscribed channel [{:?}]", ch.shared.ch_id)
         }
 
+        let ch = ch.clone();
         let cursor = Cursor { seq, ch: ch.clone() };
         cursor.ch.insert_suber(self);
         self.pending_cursors.insert(cursor.ch.ch_id().clone(), cursor);
@@ -117,7 +139,7 @@ where
         Ok(())
     }
 
-    pub fn unsubscribe(&mut self, ch_id: &K) -> Option<Channel<K, T>> { 
+    pub fn unsubscribe(&mut self, ch_id: &K) -> Option<Channel<K, T, M>> { 
         let r = remove_channel(&mut self.active_cursors, ch_id, &self.id);
         if r.is_some() {
             r
@@ -140,10 +162,11 @@ where
     }
 }
 
-fn remove_channel<K, T>(cursors: &mut VecMap<K, Cursor<K, T>>, ch_id: &K, sub_id: &SuberId) -> Option<Channel<K, T>> 
+fn remove_channel<K, T, M>(cursors: &mut VecMap<K, Cursor<K, T, M>>, ch_id: &K, sub_id: &SuberId) -> Option<Channel<K, T, M>> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
     let r = cursors.remove(ch_id).map(|x|x.ch);
     if let Some(ch) = &r {
@@ -153,10 +176,11 @@ where
 }
 
 
-impl<K, T> Drop for Suber<K, T> 
+impl<K, T, M> Drop for Suber<K, T, M> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
     fn drop(&mut self) {
         for (_id, cursor) in self.active_cursors.iter() {
@@ -170,10 +194,11 @@ where
 }
 
 
-impl<K, T> Suber<K, T> 
+impl<K, T, M> Suber<K, T, M> 
 where
     K: ChIdOp,
     T: Clone + GetSeq,
+    M: MpscOp<Mail<K, T>>,
 {
     pub fn try_recv(&mut self) -> RecvOutput<K, T> { 
 
@@ -209,8 +234,8 @@ where
 
             let r = self.rx.recv().await;
             match r {
-                Ok((ch_id, v)) => {
-                    let r = self.process_recved(ch_id, v);
+                Ok(mail) => {
+                    let r = self.process_recved(mail);
                     if !r.is_none() {
                         return r;
                     }
@@ -226,19 +251,19 @@ where
         loop {
             let r = self.rx.try_recv();
             match r {
-                Ok((ch_id, v)) => {
-                    let r = self.process_recved(ch_id, v);
+                Ok(mail) => {
+                    let r = self.process_recved(mail);
                     if !r.is_none() {
                         return r;
                     }
                 },
                 Err(e) => {
                     match e {
-                        TryRecvError::Overflowed(_n) => {
+                        TryRecvError::Overflowed => {
                             self.move_all_actives_to_pendings();
                         },
                         TryRecvError::Empty 
-                        | TryRecvError::Closed // never recv Closed
+                        // | TryRecvError::Closed // never recv Closed
                         => {}, 
                     }
                     return RecvOutput::None;
@@ -247,14 +272,14 @@ where
         }
     }
 
-    fn process_recved(&mut self, ch_id: K, v: T) -> RecvOutput<K, T>{
-        let r = self.active_cursors.get_mut(&ch_id);
+    fn process_recved(&mut self, mail: Mail<K, T>) -> RecvOutput<K, T>{
+        let r = self.active_cursors.get_mut(&mail.ch_id);
         if let Some(cursor) = r {
-            if v.get_seq() == cursor.seq {
-                return cursor.output_value(v);
+            if mail.msg.get_seq() == cursor.seq {
+                return cursor.output_value(mail.msg);
 
-            } else if v.get_seq() > cursor.seq { 
-                let r = self.active_cursors.remove(&ch_id);
+            } else if mail.msg.get_seq() > cursor.seq { 
+                let r = self.active_cursors.remove(&mail.ch_id);
                 if let Some(cursor) = r {
                     self.pending_cursors.insert(cursor.ch.ch_id().clone(), cursor);
                 }
@@ -292,24 +317,29 @@ where
     fn move_pending_to_active(&mut self, index: usize) {
         let r = self.pending_cursors.swap_remove_index(index);
         if let Some((_ch_id, cursor)) = r {
+            if self.active_cursors.len() == 0 { 
+                self.rx.clear(); // 避免反复 overflowed
+            }
             self.active_cursors.insert(cursor.ch.ch_id().clone(), cursor);
         }
     }
 
 }
 
-pub struct Puber<K, T> 
+pub struct Puber<K, T, M> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
-    ch_shared: Arc<ChShared<K, T>>,
+    ch_shared: Arc<ChShared<K, T, M>>,
 }
 
-impl<K, T> Puber<K, T> 
+impl<K, T, M> Puber<K, T, M> 
 where
     K: ChIdOp,
     T: Clone + GetSeq,
+    M: MpscOp<Mail<K, T>>,
 {
     pub fn push_raw(&mut self, v: T) -> Result<()> {
         {
@@ -324,18 +354,18 @@ where
 
     fn broadcast_to_subers(&mut self, v: T) {
         let ch_id = &self.ch_shared.ch_id;
-        let subers = self.ch_shared.subers.lock();
-        for (_k, tx) in subers.deref() { 
-            let _r = tx.try_broadcast((ch_id.clone(), v.clone()));
-            debug_assert!(_r.is_ok());
+        let mut subers = self.ch_shared.subers.lock();
+        for (_k, tx) in subers.deref_mut() { 
+            let _r = tx.try_send(Mail::new(ch_id.clone(), v.clone()));
         }
     }
 }
 
-impl<K, T> Puber<K, T> 
+impl<K, T, M> Puber<K, T, M> 
 where
     K: ChIdOp,
     T: Clone + GetSeq + WithSeq,
+    M: MpscOp<Mail<K, T>>,
 {
     pub fn push(&mut self, v: T::Value) -> Result<()> {
         let v = {
@@ -351,32 +381,56 @@ where
     }
 }
 
+pub struct Mail<K, T> {
+    ch_id: K,
+    msg: T,
+}
 
-struct ChShared<K, T> 
+impl<K, T> Mail<K, T> {
+    fn new(ch_id: K, msg: T) -> Self {
+        Self { ch_id, msg }
+    }
+}
+
+impl<K, T> Clone for Mail<K, T> 
+where
+    K: Clone,
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { ch_id: self.ch_id.clone(), msg: self.msg.clone() }
+    }
+}
+
+
+struct ChShared<K, T, M> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
     capacity: usize,
     ch_id: K,
-    subers: Mutex<VecMap<SuberId,  Sender<(K, T)>>>,
+    subers: Mutex<VecMap<SuberId,  M::Sender>>,
     queue: RwLock<ChDeque<T>>,
 }
 
 
-struct Cursor<K, T> 
+struct Cursor<K, T, M> 
 where
     K: ChIdOp,
     T: Clone,
+    M: MpscOp<Mail<K, T>>,
 {
     seq: u64,
-    ch: Channel<K, T>, // Arc<ChShared<K, T>>,
+    ch: Channel<K, T, M>, // Arc<ChShared<K, T>>,
 }
 
-impl<K, T> Cursor<K, T>  
+impl<K, T, M> Cursor<K, T, M>  
 where
     K: ChIdOp,
     T: Clone + GetSeq,
+    M: MpscOp<Mail<K, T>>,
 {
     pub fn read_next(&mut self) -> RecvOutput<K, T> {
         
