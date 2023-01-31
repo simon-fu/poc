@@ -19,11 +19,11 @@ pub mod impl01;
 pub mod impl02;
 pub mod impl51;
 mod ch_common;
-
 mod bench_impl;
-mod bench_mpsc;
 mod test_impl;
-mod test_mpsc;
+
+pub mod mpsc_ch;
+
 
 pub mod cli_graph;
 
@@ -31,7 +31,7 @@ pub mod cli_graph;
 async fn main() -> Result<()> {
     let rtype = 0;
     match rtype {
-        0 => bench_mpsc::run().await,
+        0 => mpsc_ch::bench_mpsc::run().await,
         51 => impl51::run().await,
         81 => poc_futures::run().await,
         82 => poc_async_broadcast::run().await,

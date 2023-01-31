@@ -8,9 +8,8 @@ mod test {
     use anyhow::{Result, Context};
     use crate::{
         ch_common::{uid::ChId, SeqVal, RecvOutput}, 
-        impl02::{
-            SChannel, Suber, impl_name, 
-            Mail, 
+        impl02::{ SChannel, Suber, impl_name, Mail},
+        mpsc_ch:: {
             mpsc_defs::MpscOp, 
             mpsc_async_broadcast, 
             mpsc_async_channel, 
@@ -18,7 +17,7 @@ mod test {
             mpsc_tokio_broadcast,
             mpsc_crossbeam_que,
             mpsc_kanal,
-        } 
+        },
     };
 
 

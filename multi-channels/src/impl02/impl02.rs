@@ -17,8 +17,8 @@ use parking_lot::{Mutex, RwLock};
 use crate::ch_common::uid::{SuberId, next_suber_id};
 use crate::ch_common::{SeqVal, RecvOutput, GetSeq, ReadQueOutput, ChIdOp, WithSeq, ChDeque, VecMap};
 
-use super::mpsc_defs::error::TryRecvError;
-use super::mpsc_defs::{SenderOp, MpscOp, RecvOp, TryRecvOp, ReceiverOp};
+use crate::mpsc_ch::mpsc_defs::error::TryRecvError;
+use crate::mpsc_ch::mpsc_defs::{SenderOp, MpscOp, RecvOp, TryRecvOp, ReceiverOp};
 
 pub fn impl_name() -> &'static str {
     "impl02"

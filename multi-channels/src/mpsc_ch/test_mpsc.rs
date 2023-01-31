@@ -5,8 +5,7 @@
 #[cfg(test)]
 mod test {
     use anyhow::Result;
-    use crate::{
-        impl02::{
+    use super::super::{
             mpsc_defs::{MpscOp, SenderOp, TryRecvOp, error::{TryRecvError, RecvError}, RecvOp}, 
             mpsc_async_broadcast, 
             mpsc_tokio_mpsc, 
@@ -16,7 +15,6 @@ mod test {
             mpsc_kanal, 
             mpsc_concurrent_que,
             mpsc_flume,
-        } 
     };
 
     #[tokio::test]

@@ -3,15 +3,16 @@ use anyhow::Result;
 use console::Term;
 use tokio::time::sleep;
 use crate::{
-    impl02::{
-        mpsc_defs::{MpscOp, SenderOp, RecvOp},
-        mpsc_async_broadcast, 
-        mpsc_tokio_mpsc, 
-        mpsc_async_channel, 
-        mpsc_tokio_broadcast,
-        mpsc_crossbeam_que,
-        mpsc_kanal, mpsc_concurrent_que, mpsc_flume,
-    }, cli_graph::bars::{BarRow, self} 
+    cli_graph::bars::{BarRow, self} 
+};
+use super::{
+    mpsc_defs::{MpscOp, SenderOp, RecvOp},
+    mpsc_async_broadcast, 
+    mpsc_tokio_mpsc, 
+    mpsc_async_channel, 
+    mpsc_tokio_broadcast,
+    mpsc_crossbeam_que,
+    mpsc_kanal, mpsc_concurrent_que, mpsc_flume,
 };
 
 #[derive(Debug)]
