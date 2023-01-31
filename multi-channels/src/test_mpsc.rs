@@ -13,7 +13,9 @@ mod test {
             mpsc_async_channel, 
             mpsc_tokio_broadcast,
             mpsc_crossbeam_que,
-            mpsc_kanal,
+            mpsc_kanal, 
+            mpsc_concurrent_que,
+            mpsc_flume,
         } 
     };
 
@@ -28,6 +30,11 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_mpsc_concurrent_que() -> Result<()> {
+        test_num::<mpsc_concurrent_que::Mpsc>().await
+    }
+
+    #[tokio::test]
     async fn test_mpsc_tokio_broadcast() -> Result<()> {
         test_num::<mpsc_tokio_broadcast::Mpsc>().await
     }
@@ -35,6 +42,11 @@ mod test {
     #[tokio::test]
     async fn test_mpsc_tokio_mpsc() -> Result<()> {
         test_num::<mpsc_tokio_mpsc::Mpsc>().await
+    }
+
+    #[tokio::test]
+    async fn test_mpsc_flume() -> Result<()> {
+        test_num::<mpsc_flume::Mpsc>().await
     }
 
     #[tokio::test]

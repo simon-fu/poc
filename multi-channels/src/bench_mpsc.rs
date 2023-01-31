@@ -10,7 +10,7 @@ use crate::{
         mpsc_async_channel, 
         mpsc_tokio_broadcast,
         mpsc_crossbeam_que,
-        mpsc_kanal,
+        mpsc_kanal, mpsc_concurrent_que, mpsc_flume,
     }, cli_graph::bars::{BarRow, self} 
 };
 
@@ -60,6 +60,8 @@ async fn bench_1_to_n_round(bench: &mut Bench) -> Result<()> {
     bench_1_to_n::<mpsc_kanal::Mpsc>(bench).await?;
     bench_1_to_n::<mpsc_async_broadcast::Mpsc>(bench).await?;
     bench_1_to_n::<mpsc_async_channel::Mpsc>(bench).await?;
+    bench_1_to_n::<mpsc_concurrent_que::Mpsc>(bench).await?;
+    bench_1_to_n::<mpsc_flume::Mpsc>(bench).await?;
     bench_1_to_n::<mpsc_tokio_mpsc::Mpsc>(bench).await?;
     bench_1_to_n::<mpsc_tokio_broadcast::Mpsc>(bench).await?;
 
@@ -136,6 +138,8 @@ async fn bench_1_to_n_sendonly_round(bench: &mut Bench) -> Result<()> {
     bench_1_to_n_sendonly::<mpsc_kanal::Mpsc>(bench).await?;
     bench_1_to_n_sendonly::<mpsc_async_broadcast::Mpsc>(bench).await?;
     bench_1_to_n_sendonly::<mpsc_async_channel::Mpsc>(bench).await?;
+    bench_1_to_n_sendonly::<mpsc_concurrent_que::Mpsc>(bench).await?;
+    bench_1_to_n_sendonly::<mpsc_flume::Mpsc>(bench).await?;
     bench_1_to_n_sendonly::<mpsc_tokio_mpsc::Mpsc>(bench).await?;
     bench_1_to_n_sendonly::<mpsc_tokio_broadcast::Mpsc>(bench).await?;
     
