@@ -16,7 +16,8 @@ mod test {
             mpsc_tokio_mpsc, 
             mpsc_tokio_broadcast,
             mpsc_crossbeam_que,
-            mpsc_kanal,
+            mpsc_concurrent_que,
+            mpsc_kanal, mpsc_flume, 
         },
     };
 
@@ -51,6 +52,15 @@ mod test {
         test_num::<mpsc_kanal::Mpsc>().await
     }
 
+    #[tokio::test]
+    async fn test_mpsc_concurrent_que7() -> Result<()> {
+        test_num::<mpsc_concurrent_que::Mpsc>().await
+    }
+
+    #[tokio::test]
+    async fn test_mpsc_flume8() -> Result<()> {
+        test_num::<mpsc_flume::Mpsc>().await
+    }
 
     async fn test_num<M>() -> Result<()>
     where
@@ -59,16 +69,16 @@ mod test {
         const MAX_RUNS: usize = 16;
 
         for n in 1..=MAX_RUNS {
-            test_subscribe::<M>().await.with_context(||format!("fail at NO.{} when testing [{}]", n, impl_name()))?;
+            test_subscribe::<M>().await.with_context(||format!("fail at NO.{} when test_subscribe  [{}]", n, impl_name()))?;
         }
         // println!("test1 Ok times [{}] for [{}]-[{}]", MAX_RUNS, impl_name(), M::name());
 
         for n in 1..=MAX_RUNS {
-            test_try_recv_and_lagged::<M>().await.with_context(||format!("fail at NO.{} when testing [{}]", n, impl_name()))?;
+            test_try_recv_and_lagged::<M>().await.with_context(||format!("fail at NO.{} when test_try_recv_and_lagged [{}]", n, impl_name()))?;
         }
 
         for n in 1..=MAX_RUNS {
-            test_recv_and_lagged::<M>().await.with_context(||format!("fail at NO.{} when testing [{}]", n, impl_name()))?;
+            test_recv_and_lagged::<M>().await.with_context(||format!("fail at NO.{} when test_recv_and_lagged [{}]", n, impl_name()))?;
         }
         
         Ok(())
