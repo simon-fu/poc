@@ -17,7 +17,7 @@ use super::mpsc_defs::{
     SenderOp, 
     ReceiverOp,
     TryRecvOp,
-    RecvOp, MpscOp,
+    AsyncRecvOp, MpscOp,
 };
 
 
@@ -149,13 +149,13 @@ where
     }
 }
 
-impl<T> RecvOp<T> for Receiver<T> 
+impl<T> AsyncRecvOp<T> for Receiver<T> 
 where 
     T: Clone,
 { 
     type Fut<'a> = RecvFut<'a, T> where T: 'a;
 
-    fn recv(&mut self) -> Self::Fut<'_> { 
+    fn async_recv(&mut self) -> Self::Fut<'_> { 
         let fut = RecvFut(self);
         fut
     }

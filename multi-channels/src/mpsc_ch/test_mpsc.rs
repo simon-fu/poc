@@ -6,7 +6,7 @@
 mod test {
     use anyhow::Result;
     use super::super::{
-            mpsc_defs::{MpscOp, SenderOp, TryRecvOp, error::{TryRecvError, RecvError}, RecvOp}, 
+            mpsc_defs::{MpscOp, SenderOp, TryRecvOp, error::{TryRecvError, RecvError}, AsyncRecvOp}, 
             mpsc_async_broadcast, 
             mpsc_tokio_mpsc, 
             mpsc_async_channel, 
@@ -60,7 +60,7 @@ mod test {
     async fn test_num<M>() -> Result<()>
     where
         M: MpscOp<TestVal> + 'static,
-        for<'a> <<M as MpscOp<usize>>::Receiver as RecvOp<usize>>::Fut<'a>: Send,
+        for<'a> <<M as MpscOp<usize>>::Receiver as AsyncRecvOp<usize>>::Fut<'a>: Send,
         <M as MpscOp<usize>>::Receiver: Send + 'static,
         <M as MpscOp<usize>>::Sender: Send + 'static,
     {
@@ -159,28 +159,28 @@ mod test {
         if r.is_ok() {
 
             // lost first value 
-            let r = rx.recv().await;
+            let r = rx.async_recv().await;
             assert_eq!(r, Err(RecvError));
 
             // recv starting from second value 
             for n in 1..capacity {
-                let r = rx.recv().await;
+                let r = rx.async_recv().await;
                 assert_eq!(r, Ok(base+n), "n={}", n);
             }
             
             // recv last value
-            let r = rx.recv().await;
+            let r = rx.async_recv().await;
             assert_eq!(r, Ok(base+capacity));
 
         } else {
 
             // lost last value 
-            let r = rx.recv().await;
+            let r = rx.async_recv().await;
             assert_eq!(r, Err(RecvError));
     
             // recv starting from fisrt value
             for n in 0..capacity {
-                let r = rx.recv().await;
+                let r = rx.async_recv().await;
                 assert_eq!(r, Ok(base+n), "n={}", n);
             }
         }
@@ -188,7 +188,7 @@ mod test {
         let r = tx.try_send(1);
         assert!(r.is_ok());
 
-        let r = rx.recv().await;
+        let r = rx.async_recv().await;
         assert_eq!(r, Ok(1));
     
         Ok(())
@@ -197,7 +197,7 @@ mod test {
     async fn test_multi_rx<M>() -> Result<()>
     where
         M: MpscOp<TestVal> + 'static,
-        for<'a> <<M as MpscOp<usize>>::Receiver as RecvOp<usize>>::Fut<'a>: Send,
+        for<'a> <<M as MpscOp<usize>>::Receiver as AsyncRecvOp<usize>>::Fut<'a>: Send,
         <M as MpscOp<usize>>::Receiver: Send + 'static,
         <M as MpscOp<usize>>::Sender: Send + 'static,
     {
@@ -210,7 +210,7 @@ mod test {
 
         let recv_task = tokio::spawn(async move { 
             for n in 0..msg_num*send_num {
-                let r = rx.recv().await;
+                let r = rx.async_recv().await;
                 assert!(r.is_ok(), "n={}", n);
             }
         });

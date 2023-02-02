@@ -20,7 +20,7 @@ pub trait SenderOp<T> : Clone {
     fn try_send(&mut self, msg: T) -> Result<(), TrySendError<T>>;
 }
 
-pub trait ReceiverOp<T>: TryRecvOp<T> + RecvOp<T> { 
+pub trait ReceiverOp<T>: TryRecvOp<T> + AsyncRecvOp<T> { 
     fn clear(&mut self) {
         loop {
             let r = self.try_recv();
@@ -38,13 +38,12 @@ pub trait TryRecvOp<T> {
     fn try_recv(&mut self) -> Result<T, TryRecvError>;
 }
 
-pub trait RecvOp<T> 
+pub trait AsyncRecvOp<T> 
 { 
     type Fut<'a>: Future<Output = Result<T, RecvError> >
     where Self: 'a ;
 
-    // fn recv<'a>(&'a mut self) -> Self::Fut<'a>;
-    fn recv(&mut self) -> Self::Fut<'_>;
+    fn async_recv(&mut self) -> Self::Fut<'_>;
 }
 
 

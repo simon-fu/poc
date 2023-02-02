@@ -18,7 +18,7 @@ use crate::ch_common::uid::{SuberId, next_suber_id};
 use crate::ch_common::{SeqVal, RecvOutput, GetSeq, ReadQueOutput, ChIdOp, WithSeq, ChDeque, VecMap};
 
 use crate::mpsc_ch::mpsc_defs::error::TryRecvError;
-use crate::mpsc_ch::mpsc_defs::{SenderOp, MpscOp, RecvOp, TryRecvOp, ReceiverOp};
+use crate::mpsc_ch::mpsc_defs::{SenderOp, MpscOp, AsyncRecvOp, TryRecvOp, ReceiverOp};
 
 pub fn impl_name() -> &'static str {
     "impl02"
@@ -73,12 +73,20 @@ where
         &self.shared.ch_id
     }
 
+    pub fn capacity(&self) -> usize {
+        self.shared.capacity
+    }
+
     pub fn puber(&self) -> Puber<K, T, M> {
         Puber { ch_shared: self.shared.clone() }
     }
 
     pub fn subers(&self) -> usize {
         self.shared.subers.lock().len()
+    }
+
+    pub fn tail_seq(&self) -> u64 {
+        self.shared.queue.read().next_seq()
     }
 
     fn insert_suber(&self, suber: &Suber<K, T, M>) {
@@ -203,15 +211,10 @@ where
     pub fn try_recv(&mut self) -> RecvOutput<K, T> { 
 
         loop { 
-            while self.pending_cursors.len() > 0 { 
-                let r = self.read_pending_at(self.last_pending_index);
-                
-                self.inc_last_pending_index();
-
-                if !r.is_none() {
-                    return r;
-                } 
-            }
+            let r = self.read_pending();
+            if !r.is_none() {
+                return r;
+            } 
 
             let r = self.try_recv_active();
                 
@@ -219,7 +222,7 @@ where
                 return r;
             }
 
-            if self.pending_cursors.len() == 0 {
+            if self.is_pending_empty() {
                 return RecvOutput::None;
             }            
         }
@@ -232,7 +235,7 @@ where
                 return r;
             }
 
-            let r = self.rx.recv().await;
+            let r = self.rx.async_recv().await;
             match r {
                 Ok(mail) => {
                     let r = self.process_recved(mail);
@@ -285,6 +288,23 @@ where
                 }
             } 
             // ignore
+        }
+        RecvOutput::None
+    }
+
+    fn is_pending_empty(&self) -> bool {
+        self.pending_cursors.len() == 0 
+    }
+
+    fn read_pending(&mut self) -> RecvOutput<K, T> {
+        while self.pending_cursors.len() > 0 { 
+            let r = self.read_pending_at(self.last_pending_index);
+            
+            self.inc_last_pending_index();
+
+            if !r.is_none() {
+                return r;
+            } 
         }
         RecvOutput::None
     }

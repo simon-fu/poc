@@ -13,7 +13,7 @@ use super::mpsc_defs::{
     SenderOp, 
     ReceiverOp,
     TryRecvOp,
-    RecvOp, MpscOp,
+    AsyncRecvOp, MpscOp,
 };
 
 
@@ -103,13 +103,13 @@ where
     }
 }
 
-impl<T> RecvOp<T> for Receiver<T> 
+impl<T> AsyncRecvOp<T> for Receiver<T> 
 where 
     T: Clone,
 { 
     type Fut<'a> = impl Future<Output = Result<T, RecvError> > + 'a where Self: 'a;
 
-    fn recv(&mut self) -> Self::Fut<'_> { 
+    fn async_recv(&mut self) -> Self::Fut<'_> { 
         async move {
             let overflowed = self.overflowed.fetch_and(false, Ordering::Acquire);
             if overflowed {

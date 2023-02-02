@@ -24,7 +24,7 @@ mod test_impl;
 
 pub mod mpsc_ch;
 
-
+pub mod async_call;
 pub mod cli_graph;
 
 #[tokio::main]

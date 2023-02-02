@@ -21,6 +21,14 @@ impl<K, T> RecvOutput<K, T> {
             false
         }
     }
+
+    pub fn is_lagged(&self) -> bool {
+        if let Self::Lagged(_v) = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl <K, T> PartialEq for RecvOutput<K, T> 

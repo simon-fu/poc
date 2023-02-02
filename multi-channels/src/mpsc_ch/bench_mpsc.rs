@@ -6,7 +6,7 @@ use crate::{
     cli_graph::bars::{BarRow, self} 
 };
 use super::{
-    mpsc_defs::{MpscOp, SenderOp, RecvOp},
+    mpsc_defs::{MpscOp, SenderOp, AsyncRecvOp},
     mpsc_async_broadcast, 
     mpsc_tokio_mpsc, 
     mpsc_async_channel, 
@@ -77,7 +77,7 @@ where
     M: MpscOp<Message>,
     <M as MpscOp<Message>>::Sender: Send + 'static,
     <M as MpscOp<Message>>::Receiver: Send + 'static,
-    for<'a> <<M as MpscOp<Message>>::Receiver as RecvOp<Message>>::Fut<'a>: Send,
+    for<'a> <<M as MpscOp<Message>>::Receiver as AsyncRecvOp<Message>>::Fut<'a>: Send,
 { 
     let args = &bench.args;
 
@@ -91,7 +91,7 @@ where
 
         let h = tokio::spawn(async move { 
             for _ in 0..msg_num {
-                rx.recv().await?;
+                rx.async_recv().await?;
             }
             Result::<()>::Ok(())
         });
@@ -154,7 +154,7 @@ where
     M: MpscOp<Message>,
     <M as MpscOp<Message>>::Sender: Send + 'static,
     <M as MpscOp<Message>>::Receiver: Send + 'static,
-    for<'a> <<M as MpscOp<Message>>::Receiver as RecvOp<Message>>::Fut<'a>: Send,
+    for<'a> <<M as MpscOp<Message>>::Receiver as AsyncRecvOp<Message>>::Fut<'a>: Send,
 { 
     let args = &bench.args;
     let mut senders = Vec::with_capacity(args.ch_num);
