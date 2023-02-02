@@ -55,16 +55,16 @@ impl<F> std::fmt::Debug for AsyncCallFn<F> {
 //     }
 // }
 
-impl<'s, F, Fut, Request, Response> AsyncCall<'s, Request> for AsyncCallFn<F>
+impl<'s, F, Fut, Input, Output> AsyncCall<'s, Input> for AsyncCallFn<F>
 where
-    F: FnMut(Request) -> Fut + 's,
-    Fut: Future<Output = Response>,
+    F: FnMut(Input) -> Fut + 's,
+    Fut: Future<Output = Output>,
 {
-    type Response = Response;
+    type Output = Output;
     type Future = Fut;
 
-    fn async_call(&mut self, req: Request) -> Self::Future {
-        (self.f)(req)
+    fn async_call(&'s mut self, input: Input) -> Self::Future {
+        (self.f)(input)
     }
 }
 

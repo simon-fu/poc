@@ -191,7 +191,7 @@ mod test {
     async fn test_recv_and_lagged<M, S>(mut caller: S) -> Result<()>
     where
         M: MpscOp<Mail<ChId, SeqVal<TestVal>>> + 'static,
-        for<'s, 'a> S: AsyncCall<'s, (&'a mut Tester<M>, usize), Response = OutVec>,
+        for<'s, 'a> S: AsyncCall<'s, (&'a mut Tester<M>, usize), Output = OutVec>,
         // for<'a> Fut: std::future::Future + 'a,
     {
         let mut tester = make_tester::<M>()?;
