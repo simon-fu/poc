@@ -1,16 +1,16 @@
-///
-/// 修改 use implxx 测试各种实现
-/// 
-
-
 #[cfg(test)]
 mod test {
     use anyhow::{Result, Context, bail};
 
+    use super::super::channel::SChannel;
+    use super::super::suber::Suber;
+    use super::super::super::event::Event;
+
+
     use crate::{
         ch_common::{uid::ChId, SeqVal, RecvOutput}, 
         async_call::{async_call_fn, AsyncCall},
-        impl02::{ SChannel, Suber, impl_name, Mail, Puber},
+        // impl02::{ SChannel, Suber, impl_name, Mail, Puber},
         mpsc_ch:: {
             mpsc_defs::MpscOp, 
             mpsc_async_broadcast, 
@@ -23,6 +23,9 @@ mod test {
         },
     };
 
+    fn impl_name() -> &'static str {
+        "aaa"
+    }
 
     #[tokio::test]
     async fn test_mpsc_async_broadcast1() -> Result<()> {
@@ -75,34 +78,19 @@ mod test {
         let r = tester.subscribe_all_and_check();
         assert_eq!(r.is_ok(), true, "r={:?}", r);
 
-        tester.clear_values();
-
-        let r = tester.pubers[0].push(10);
+        let r = tester.channels[0].push(10);
         assert_eq!(r.is_ok(), true, "r={:?}", r);
 
         let r = tester.suber.try_recv();
         assert_eq!(r, RecvOutput::Value(ChId::new(0), SeqVal(1, 10)), "r={:?}", r);
 
-        let r = tester.pubers[0].push(11);
+        let r = tester.channels[0].push(11);
         assert_eq!(r.is_ok(), true, "r={:?}", r);
 
         let r = tester.suber.try_recv();
         assert_eq!(r, RecvOutput::Value(ChId::new(0), SeqVal(2, 11)), "r={:?}", r);
 
         Ok(())
-
-        // async fn handle<M>(request: (&mut Tester<M>, usize)) -> OutVec
-        // where
-        //     M: MpscOp<Event<ChId, SeqVal<TestVal>>> + 'static,
-        // {
-        //     request.0.try_recv_num(request.1)
-        // }
-
-        // let caller = async_call_fn(handle::<M>);
-        // let r = test_normal_recv(caller).await;
-        // assert_eq!(r.is_ok(), true, "r={:?}", r);
-
-        // Ok(())
 
     }
 
@@ -122,10 +110,7 @@ mod test {
         assert_eq!(r.is_ok(), true, "r={:?}", r);
 
         Ok(())
-
     }
-
-    type Event<K, T> = Mail<K, T>;
 
     async fn test_normal_recv<M, S>(mut caller: S) -> Result<()>
     where
@@ -142,7 +127,23 @@ mod test {
         { 
             tester.clear_values();
             
-            let val_range = 1..2; // tester.ch_cap + 1;
+            // let n = 1;
+            // let r = tester.pubers[0].push(n);
+            // assert_eq!(r.is_ok(), true, "r={:?}, n={:?}", r, n);
+
+            // let r = tester.pubers[1].push(n);
+            // assert_eq!(r.is_ok(), true, "r={:?}, n={:?}", r, n);
+
+            // let r = tester.suber.try_recv();
+            // let r = tester.check_value(&r);
+            // assert_eq!(r.is_ok(), true, "n={}, r={:?}", n, r);
+
+            // let r = tester.suber.try_recv();
+            // let r = tester.check_value(&r);
+            // assert_eq!(r.is_ok(), true, "n={}, r={:?}", n, r);
+
+
+            let val_range = 1..tester.ch_cap + 1;
             let r = tester.push_all(val_range.clone());
             // let r = tester.push_all(1..tester.ch_cap + 1);
             assert!(r.is_ok(), "r={:?}", r);
@@ -161,10 +162,9 @@ mod test {
         Ok(())
     }
 
-
     async fn test_num<M>() -> Result<()>
     where
-        M: MpscOp<Mail<ChId, SeqVal<TestVal>>> + 'static,
+        M: MpscOp<Event<ChId, SeqVal<TestVal>>> + 'static,
     {
         const MAX_RUNS: usize = 16;
 
@@ -186,7 +186,7 @@ mod test {
 
     async fn test_subscribe<M>() -> Result<()>
     where
-        M: MpscOp<Mail<ChId, SeqVal<TestVal>>>,
+        M: MpscOp<Event<ChId, SeqVal<TestVal>>>,
     {
         let ch_cap = 16;        
         let inbox_cap = 8;
@@ -196,10 +196,10 @@ mod test {
     
     
         let ch1 = SChannel::<ChId, TestVal, M>::with_capacity(ch_id1, ch_cap);
-        let puber1 = ch1.puber();
+        let puber1 = ch1.clone(); // ch1.puber();
     
         let ch2 = SChannel::<ChId, TestVal, M>::with_capacity(ch_id2, ch_cap);
-        let puber2 = ch2.puber();
+        let puber2 = ch2.clone(); // ch2.puber();
     
         let mut suber = Suber::with_inbox_cap(inbox_cap);
     
@@ -254,11 +254,11 @@ mod test {
 
     async fn test_sync_recv_and_lagged<M>() -> Result<()>
     where
-        M: MpscOp<Mail<ChId, SeqVal<TestVal>>>+ 'static,
+        M: MpscOp<Event<ChId, SeqVal<TestVal>>>+ 'static,
     {
         async fn handle<M>(request: (&mut Tester<M>, usize)) -> OutVec
         where
-            M: MpscOp<Mail<ChId, SeqVal<TestVal>>> + 'static,
+            M: MpscOp<Event<ChId, SeqVal<TestVal>>> + 'static,
         {
             request.0.try_recv_num(request.1)
         }
@@ -271,11 +271,11 @@ mod test {
 
     async fn test_async_recv_and_lagged<M>() -> Result<()>
     where
-        M: MpscOp<Mail<ChId, SeqVal<TestVal>>>+ 'static,
+        M: MpscOp<Event<ChId, SeqVal<TestVal>>>+ 'static,
     {
         async fn handle<M>(request: (&mut Tester<M>, usize)) -> OutVec
         where
-            M: MpscOp<Mail<ChId, SeqVal<TestVal>>> + 'static,
+            M: MpscOp<Event<ChId, SeqVal<TestVal>>> + 'static,
         {
             request.0.recv_num(request.1).await
         }
@@ -288,7 +288,7 @@ mod test {
 
     async fn test_recv_and_lagged<M, S>(mut caller: S) -> Result<()>
     where
-        M: MpscOp<Mail<ChId, SeqVal<TestVal>>> + 'static,
+        M: MpscOp<Event<ChId, SeqVal<TestVal>>> + 'static,
         for<'s, 'a> S: AsyncCall<'s, (&'a mut Tester<M>, usize), Output = OutVec>,
         // for<'a> Fut: std::future::Future + 'a,
     {
@@ -309,7 +309,7 @@ mod test {
             let outputs = caller.async_call((&mut tester, num)).await;
 
             let r = tester.check_outputs(&mut Vec::new(), &outputs);
-            assert!(r.is_ok(), "r={:?}", r);
+            assert_eq!(r.is_ok(), true, "r={:?}", r);
     
             let r = tester.recv_none();
             assert!(r.is_ok(), "r={:?}", r);
@@ -359,13 +359,14 @@ mod test {
 
     struct Tester<M> 
     where
-        M: MpscOp<Mail<ChId, SeqVal<TestVal>>>,
+        M: MpscOp<Event<ChId, SeqVal<TestVal>>>,
     {
         _inbox_cap: usize, 
         ch_cap: usize,
         ch_ids: Vec<ChId>,
         channels: Vec<SChannel<ChId, usize, M>>,
-        pubers: Vec<Puber<ChId, SeqVal<usize>, M>>,
+        pubers: Vec<SChannel<ChId, usize, M>>,
+        // pubers: Vec<Puber<ChId, SeqVal<usize>, M>>,
         suber: Suber<ChId, SeqVal<TestVal>, M>,
         seqs: Vec<u64>,
         values: Vec<TestVal>,
@@ -373,7 +374,7 @@ mod test {
 
     impl<M> Tester<M> 
     where
-        M: MpscOp<Mail<ChId, SeqVal<TestVal>>>,
+        M: MpscOp<Event<ChId, SeqVal<TestVal>>>,
     {
         fn all_index(&self) -> Vec<usize> {
             (0..self.ch_ids.len()).enumerate().map(|x|x.0).collect()
@@ -479,8 +480,8 @@ mod test {
             laggeds: &mut Vec<usize>, 
             outputs: &Vec<RecvOutput<ChId, SeqVal<TestVal>>>,
         ) -> Result<()> {
-            for output in outputs.iter() {
-                self.check_output(laggeds, output)?;
+            for (n, output) in outputs.iter().enumerate() {
+                self.check_output(laggeds, output).with_context(||format!("check output fail at No.{}", n))?;
             }
             Ok(())
         }
@@ -512,8 +513,9 @@ mod test {
                 } 
                 Ok(())
             } else {
-                // assert!(false, "n={}, r={:?}", n, r);
-                bail!("Not value, r={:?}", r)
+                // assert!(false, "r={:?}", r);
+                // bail!("Not value, r={:?}", r)
+                return Err(anyhow::anyhow!("Not value, r={:?}", r))
             }
         }
 
@@ -541,7 +543,7 @@ mod test {
 
     fn make_tester<M>() -> Result<Tester<M>>
     where
-        M: MpscOp<Mail<ChId, SeqVal<TestVal>>>,
+        M: MpscOp<Event<ChId, SeqVal<TestVal>>>,
     {
         let inbox_cap = 8;
         let ch_cap = 16;        
@@ -557,11 +559,13 @@ mod test {
         .map(|x|SChannel::<ChId, TestVal, M>::with_capacity(*x, ch_cap))
         .collect();
 
+        // let pubers: Vec<_> = channels.iter()
+        // .map(|x|x.puber())
+        // .collect();
 
         let pubers: Vec<_> = channels.iter()
-        .map(|x|x.puber())
+        .map(|x|x.clone())
         .collect();
-
     
         let suber = Suber::with_inbox_cap(inbox_cap);
         

@@ -30,9 +30,9 @@ impl<K, T> Channel<K, T> {
     pub fn with_capacity(ch_id: K, capacity: usize) -> Self {
         Self {
             shared: Arc::new(ChShared { 
-                queue: RwLock::new(ChDeque::new()),
+                queue: RwLock::new(ChDeque::with_capacity(capacity)),
                 subers: Default::default(),
-                capacity,
+                // capacity,
                 ch_id,
             }
         )}
@@ -204,7 +204,7 @@ where
     pub fn push_raw(&mut self, v: T) -> Result<()> {
         {
             let mut queue = self.ch_shared.queue.write();
-            queue.push_raw(v, self.ch_shared.capacity)?;
+            queue.push_raw(v)?;
         }
 
         self.wakeup_all();
@@ -231,7 +231,7 @@ where
         {
             let mut queue = self.ch_shared.queue.write();
             let v = T::with_seq(queue.next_seq(), v);   
-            queue.push_raw(v, self.ch_shared.capacity)?;
+            queue.push_raw(v)?;
         }
 
         self.wakeup_all();
@@ -267,7 +267,7 @@ impl<K> Future for &SuberShared<K> {
 }
 
 struct ChShared<K, T> {
-    capacity: usize,
+    // capacity: usize,
     ch_id: K,
     subers: Mutex<VecSet< HashSuberShared<K> >>,
     queue: RwLock<ChDeque<T>>,

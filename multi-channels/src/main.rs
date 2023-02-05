@@ -27,6 +27,8 @@ pub mod mpsc_ch;
 pub mod async_call;
 pub mod cli_graph;
 
+pub mod ch_hub; 
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let rtype = 0;

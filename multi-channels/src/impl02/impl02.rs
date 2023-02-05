@@ -4,8 +4,7 @@
 /// - 每个 channel 有一个 suber 列表，列表 item 为 async-broadcast tx
 /// - channel 在 publish 时遍历 suber 列表，tx.send
 /// - 消息保存在 channel queue 里以外，还保存一份在 async-broadcast 里，多了一份冗余
-/// - TODO: 
-///   - 把 async-broadcast 抽象出来，用 async-channel、tokio::sync::broadcast、flume、kanal、concurrent-queue+AtomicWaker 实现
+/// - TODO:  
 ///   - broadcast 带上 active index
 /// 
 
@@ -61,9 +60,9 @@ where
     pub fn with_capacity(ch_id: K, cap: usize) -> Self {
         Self {
             shared: Arc::new(ChShared { 
-                queue: RwLock::new(ChDeque::new()),
+                queue: RwLock::new(ChDeque::with_capacity(cap)),
                 subers: Default::default(),
-                capacity: cap,
+                // capacity: cap,
                 ch_id,
             }
         )}
@@ -74,7 +73,7 @@ where
     }
 
     pub fn capacity(&self) -> usize {
-        self.shared.capacity
+        self.shared.queue.read().capacity()
     }
 
     pub fn puber(&self) -> Puber<K, T, M> {
@@ -361,10 +360,10 @@ where
     T: Clone + GetSeq,
     M: MpscOp<Mail<K, T>>,
 {
-    pub fn push_raw(&mut self, v: T) -> Result<()> {
+    pub fn push_raw(&self, v: T) -> Result<()> {
         {
             let mut queue = self.ch_shared.queue.write();
-            queue.push_raw(v.clone(), self.ch_shared.capacity)?;
+            queue.push_raw(v.clone())?;
         }
 
         self.broadcast_to_subers(v);
@@ -372,7 +371,7 @@ where
         Ok(())
     }
 
-    fn broadcast_to_subers(&mut self, v: T) {
+    fn broadcast_to_subers(&self, v: T) {
         let ch_id = &self.ch_shared.ch_id;
         let mut subers = self.ch_shared.subers.lock();
         for (_k, tx) in subers.deref_mut() { 
@@ -387,11 +386,11 @@ where
     T: Clone + GetSeq + WithSeq,
     M: MpscOp<Mail<K, T>>,
 {
-    pub fn push(&mut self, v: T::Value) -> Result<()> {
+    pub fn push(&self, v: T::Value) -> Result<()> {
         let v = {
             let mut queue = self.ch_shared.queue.write();
             let v = T::with_seq(queue.next_seq(), v);   
-            queue.push_raw(v.clone(), self.ch_shared.capacity)?;
+            queue.push_raw(v.clone())?;
             v
         };
 
@@ -429,7 +428,7 @@ where
     T: Clone,
     M: MpscOp<Mail<K, T>>,
 {
-    capacity: usize,
+    // capacity: usize,
     ch_id: K,
     subers: Mutex<VecMap<SuberId,  M::Sender>>,
     queue: RwLock<ChDeque<T>>,

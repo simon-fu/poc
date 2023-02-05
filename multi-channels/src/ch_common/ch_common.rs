@@ -85,11 +85,11 @@ pub trait WithSeq {
 #[derive(Eq)]
 pub struct SeqVal<V>(pub(crate)u64, pub(crate)V);
 
-// impl <V> SeqVal<V> {
-//     pub fn new(seq: u64, v: V) -> Self {
-//         Self(seq, v)
-//     }
-// }
+impl <V> SeqVal<V> {
+    pub fn new(seq: u64, v: V) -> Self {
+        Self(seq, v)
+    }
+}
 
 impl<V> WithSeq for SeqVal<V> {
     type Value = V;
