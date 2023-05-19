@@ -1,7 +1,21 @@
-#![feature(thin_box)]
-#![feature(ptr_metadata)]
+// #![feature(thin_box)]
+// #![feature(ptr_metadata)]
 // use actix::{Actor, Context, System};
 use actix::prelude::*;
+
+pub mod actor; 
+
+#[inline]
+pub fn spawn_with_name<I, T>(name: I, fut: T) -> tokio::task::JoinHandle<T::Output>
+where
+    I: Into<String>,
+    T: futures::Future + Send + 'static,
+    T::Output: Send + 'static,
+{
+    let name:String = name.into();
+    let span = tracing::span!(parent:None, tracing::Level::INFO, "", s = &name[..]);
+    tokio::spawn(tracing::Instrument::instrument(fut, span))
+}
 
 struct MyActor;
 
