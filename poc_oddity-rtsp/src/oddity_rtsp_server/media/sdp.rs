@@ -31,7 +31,17 @@ pub async fn create(name: &str, descriptor: &MediaDescriptor) -> Result<Sdp, Sdp
         .await
         .map_err(SdpError::Media)?;
     let best_video_stream = reader.best_video_stream_index().map_err(SdpError::Media)?;
-    tracing::trace!(best_video_stream, "sdp: initialized reader");
+
+    let best_audio_stream = reader
+        .input
+        .streams()
+        .best(ffmpeg_next::media::Type::Audio)
+        .ok_or(ffmpeg_next::Error::StreamNotFound)
+        .map_err(video_rs::Error::from)
+        .map_err(SdpError::Media)?
+        .index();
+
+    tracing::debug!(best_video_stream, best_audio_stream, "sdp: initialized reader");
 
     tracing::trace!("sdp: initializing muxer");
     let muxer = rtp_muxer::make_rtp_muxer()
@@ -72,6 +82,30 @@ pub async fn create(name: &str, descriptor: &MediaDescriptor) -> Result<Sdp, Sdp
         codec_info,
         Direction::ReceiveOnly,
     );
+    // sdp.media[0].tags.push(oddity_sdp_protocol::Tag::Property("control:streamid=0".into()));
+    
+    // let format = 97;
+    // sdp.media.push(oddity_sdp_protocol::Media {
+    //     kind: Kind::Audio,
+    //     port: TARGET_DUMMY_PORT,
+    //     protocol: Protocol::RtpAvp,
+    //     format,
+    //     tags: vec![
+    //         oddity_sdp_protocol::Tag::Value(
+    //             "rtpmap".to_string(),
+    //             format!("{format} {}", "MPEG4-GENERIC/48000/2"),
+    //         ),
+    //         oddity_sdp_protocol::Tag::Value(
+    //             "fmtp".to_string(),
+    //             format!(
+    //                 "{format} {}", 
+    //                 "profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3; config=119056E500"
+    //             ),
+    //         ),
+    //         oddity_sdp_protocol::Tag::Property(Direction::ReceiveOnly.to_string()),
+    //         // oddity_sdp_protocol::Tag::Property("control:streamid=1".into()),
+    //     ],
+    // });
 
     tracing::trace!(%sdp, "generated sdp");
     Ok(sdp)

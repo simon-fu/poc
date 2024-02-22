@@ -50,6 +50,6 @@ where
     // .with_env_filter("rtun=debug,rserver=debug")
     .with_writer(w)
     .with_timer(timer)
-    .with_target(true)
+    .with_target(false)
     .init();
 }

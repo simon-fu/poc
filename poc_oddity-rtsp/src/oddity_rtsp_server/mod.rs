@@ -1,7 +1,7 @@
 // from crate oddity-rtsp, commit 27480007
 
 pub mod app;
-mod media;
+pub(crate) mod media;
 mod net;
 mod runtime;
 mod session;
