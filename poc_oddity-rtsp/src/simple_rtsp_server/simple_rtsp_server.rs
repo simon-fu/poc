@@ -75,20 +75,20 @@ pub trait RtspMediaSource {
     fn on_start_play(&mut self) -> impl Future<Output = Result<()>> + Send + Sync;
 
     // async fn on_inbound_rtp(&mut self, packet: RtspChPacket) -> Result<()>;
-    fn on_inbound_rtp(&mut self, packet: RtspChPacket) -> impl Future<Output = Result<()>> + Send + Sync;
+    fn on_inbound_rtp(&mut self, packet: RtpChPacket) -> impl Future<Output = Result<()>> + Send + Sync;
 
     // Must be CANCEL SAFETY
     // async fn read_outbound_rtp(&mut self) -> Result<Option<RtspChPacket>>;
-    fn read_outbound_rtp(&mut self) -> impl Future<Output = Result<Option<RtspChPacket>> > + Send + Sync;
+    fn read_outbound_rtp(&mut self) -> impl Future<Output = Result<Option<RtpChPacket>> > + Send + Sync;
 }
 
 #[derive(Clone)]
-pub struct RtspChPacket { 
+pub struct RtpChPacket { 
     pub ch_id: u8,
     pub data: Bytes,
 }
 
-impl fmt::Display for RtspChPacket {
+impl fmt::Display for RtpChPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ch {}, len {}", self.ch_id, self.data.len())
     }
@@ -149,7 +149,7 @@ impl<C> Connection<C> {
         self.is_teardown
     }
 
-    pub async fn send_interleave(&mut self, packet: RtspChPacket) -> Result<()> {
+    pub async fn send_interleave(&mut self, packet: RtpChPacket) -> Result<()> {
         // debug!("S -> C: Interleaved ch {}, len {}", packet.ch_id, packet.data.len());
         self.outbound.send(MaybeInterleaved::Interleaved{channel: packet.ch_id, payload: packet.data}).await?;
         Ok(())
@@ -530,7 +530,7 @@ where
         Ok(State::TearDown)
     }
 
-    async fn handle_outbound_packet<C>(&mut self, conn: &mut Connection<C>, mut packet: RtspChPacket) -> Result<()> {
+    async fn handle_outbound_packet<C>(&mut self, conn: &mut Connection<C>, mut packet: RtpChPacket) -> Result<()> {
         if let Some(ch) = self.channels.get(packet.ch_id as usize) {
             match ch {
                 Xtrans::Empty => {},
@@ -549,7 +549,7 @@ where
                 self.handle_inbound_req(conn, &req).await
             },
             MaybeInterleaved::Interleaved { channel, payload } => {                
-                let rtp = RtspChPacket {
+                let rtp = RtpChPacket {
                     ch_id: channel,
                     data: payload,
                 };
