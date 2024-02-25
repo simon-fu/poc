@@ -1,0 +1,24 @@
+
+[package]
+name = "poc_rust_ffmpeg"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+
+[dependencies.ffmpeg-next]
+version = "=6.1.1"
+features = [
+    "format",
+    "codec",
+    "software-resampling",
+    "software-scaling",
+]
+
+[dependencies.ffmpeg-sys-next]
+version = "=6.1.0"
+# # default-features = false
+
