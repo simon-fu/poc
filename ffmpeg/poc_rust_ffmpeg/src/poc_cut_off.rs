@@ -8,18 +8,19 @@ fn test_cut_off() {
     // ffmpeg::init().unwrap();
     // log::set_level(log::Level::Warning);
 
-    // let ifile = "/tmp/sample-data/sample.mp4";
-    // let ofile = "/tmp/output.mp4";
-    // let range = 10_000..20_000;
-    // cut_off(ifile, ofile, range.clone());
-    // println!("output file [{ofile}], cut off [{range:?}] ms");
-
-    let ifile = "/tmp/output.mp3";
-    let ofile = "/tmp/cut.mp3";
-    let range = 5_000..30_000;
+    let ifile = "/tmp/sample-data/sample.mp4";
+    let ofile = "/tmp/cut.mp4";
+    let range = 10_000..20_000;
     cut_off(ifile, ofile, range.clone());
     println!("output file [{ofile}], cut off [{range:?}] ms");
-    print_packets(ofile, range.end + 12_000);
+    print_packets(ofile, range.end + 2_000);
+
+    // let ifile = "/tmp/output.mp3";
+    // let ofile = "/tmp/cut.mp3";
+    // let range = 5_000..30_000;
+    // cut_off(ifile, ofile, range.clone());
+    // println!("output file [{ofile}], cut off [{range:?}] ms");
+    // print_packets(ofile, range.end + 2_000);
 }
 
 #[test]
